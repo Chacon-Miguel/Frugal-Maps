@@ -85,3 +85,79 @@ As we're planning paths between nodes, we'll want to make sure that we only cons
 We will use an approximation for distance (in miles) that takes into account the approximate curvature of the earth
 
 ### Auxiliary Data Structures
+The chosen data structure was an adjancency set, which in Python is essentially a dictionary that maps every nodes ID to another dictionary that contains the following keys:
+* `'lon'`: a float representing the nodes longitude
+* `'lat'`: a float representing the nodes latitude
+* `'connecting nodes'`: a dictionary that maps the ID's of nodes that are connected to the current node to another dictionary that contains the distance between the two nodes and the time to get from one node to another
+
+The following is an example of node's entry with an ID of 10:
+```
+map_rep[10] = {
+    'lon':41, 
+    'lat':-89, 
+    'connecting nodes': {
+        4: {
+            'distance: 4, 
+            'time': 0.005
+            }
+        }
+    }
+```
+
+## Starting and Ending Points
+Often, when we are interested in path planning in real geographical contexts, our given starting point might not actually be a known point of interest (for example, it might be a location specified by GPS).
+
+To this end, we augmented our system so that it can accept arbitrary locations for the starting and ending points, specified as (latitude, longitude) tuples.
+
+We will do this by implementing a new function `find_short_path` in `lab.py`. This function takes in three arguments:
+* `map_rep`: the internal representation of the map
+* `loc1`: a tuple of (latitude, longitude) of our starting location
+* `loc2`: a tuple of (latitude, longitude) of our ending location
+
+The function then returns a list of (latitude, longitude) tuples connecting the start and end location.
+
+It is entirely possible that the locations passed to find_short_path will not correspond exactly to nodes in the dataset. As such, we will instead plan our shortest paths as follows, where a "relevant" way refers to any way that we will actually consider in our path planning:
+* finding the nearest node to `loc1` that is part of a relevant way (call this node $n_{1}$)
+* finding the nearest node to `loc2` that is part of a relevant way (call this node $n_{2}$)
+* finding the shortest path from $n_{1}$ to $n_{2}$ (in terms of miles)
+* convert the resulting path into (latitude, longitude) tuples.
+
+## Visualization
+As with the last lab, we have provided a web-based interface that acts as a visualization for your code.
+
+Here, we use leaflet to display map data from the Wikimedia foundation.
+
+You can start the server by running server.py but providing the filename of one of the datasets as an argument, for example:
+```
+python3 server.py midwest
+```
+or 
+```
+python3 server.py cambridge
+```
+
+This process will first build up the necessary internal representation for pathfinding by calling your `build_internal_representation` function, and then it will start a server. After the server has successfully started, you can interact with this application by navigating to `http://localhost:6009/` in your web browser. In that view, you can double-click on two locations to find and display a path between them.
+
+Alternatively, you can manually call your path-finding procedure to generate a path and then pass its path to the provided `to_local_kml_url` function to receive a URL that will initialize to display the resulting path.
+
+## Improving Runtime with Heuristics
+A reasonable heuristic in this domain is the distance directly from the given node to the goal node:
+$$
+h(n) = great_circle_distance(n, goal)
+$$
+
+This function provides a decent estimate of our overall cost, it is admissible and consistent, and it is pretty fast to compute.
+
+## Need for Speed (Limits)
+So far, our planning has been based purely on distance, but oftentimes, when planning a route between two locations, we are actually interested in the amount of time it will take to move from one location to another.
+
+For the last part of this lab, you should implement `find_fast_path`, which, unlike `find_short_path`, should take into account speed limits (we're responsible citizens of the world, so we won't drive over the speed limit).
+
+Some ways in the dataset store information about the speed limit along that way. That said, unfortunately, speed-limit information is somewhat sparse in OSM data (at least in these datasets), and so we'll have to guess a little bit for some of the roads. We have done a little bit of preprocessing of the data for you, to make extracting this information a little bit easier than it would otherwise be.
+
+For each way, we'll determine the speed limit as follows:
+* if the way has the `'maxspeed_mph'` tag, the corresponding value (an integer) represents the speed limit in miles per hour
+* if that tag does not exist, look up the way's `'highway'` type in the `DEFAULT_SPEED_LIMIT_MPH` dictionary and use the corresponding value.
+
+If the two nodes are connected by more than one way with distinct speed limits, you should always prefer higher of the two speed limits.
+
